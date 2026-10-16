@@ -29,6 +29,20 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    
+  worker:
+    build:
+      context: ./backend
+    working_dir: /app
+    command: python -m app.worker
+    environment:
+      DATABASE_URL: postgresql+psycopg://app:${POSTGRES_PASSWORD}@db:5432/invoices
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
 
   frontend:
     build:
