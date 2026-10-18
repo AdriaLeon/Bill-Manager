@@ -57,5 +57,15 @@ services:
     depends_on:
       - backend
 
+  test:
+    build:
+      context: ./backend
+    working_dir: /app
+    volumes:
+      - ./backend:/app
+    environment:
+      DATABASE_URL: "sqlite://"
+    command: python -m pytest -v tests/
+
 volumes:
   postgres_data:
