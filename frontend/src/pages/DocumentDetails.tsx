@@ -6,7 +6,7 @@ import type { DocumentDetail } from "../types/document";
 
 import DocumentEditForm, { type DocumentCorrectionPayload, } from "../components/DocumentEditForm";
 
-import "./DocumentDetails.css";
+import "../styles/DocumentDetails.css";
 
 const statusLabels: Record<DocumentDetail["status"], string> = {
     pending: "Pending",

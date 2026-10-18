@@ -4,7 +4,7 @@ import { useState } from "react";
 import DocumentUploader from "../components/DocumentUploader";
 import DocumentList from "../components/DocumentList";
 
-import "./MainPage.css";
+import "../styles/MainPage.css";
 
 export default function MainPage() {
     const [refreshKey, setRefreshKey] = useState(0);
