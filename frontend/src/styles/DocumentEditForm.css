@@ -1,0 +1,49 @@
+.edit-form-panel {
+    margin-bottom: 24px;
+}
+
+.document-edit-form {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+    margin-top: 24px;
+}
+
+.document-edit-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.document-edit-form input {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    padding: 11px 12px;
+    border: 1px solid var(--border-color, #d1d5db);
+    border-radius: 8px;
+    background: var(--input-background, #fff);
+    color: inherit;
+    font: inherit;
+}
+
+.document-edit-form input:focus {
+    outline: 2px solid var(--accent-color, #2563eb);
+    outline-offset: 1px;
+}
+
+.edit-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    grid-column: 1 / -1;
+    padding-top: 4px;
+}
+
+@media (max-width: 600px) {
+    .document-edit-form {
+        grid-template-columns: 1fr;
+    }
+}

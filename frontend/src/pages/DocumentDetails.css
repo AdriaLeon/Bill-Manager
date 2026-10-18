@@ -94,3 +94,33 @@
         grid-column: auto;
     }
 }
+
+.edit-icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border: 1px solid var(--accent-color, #2563eb);
+    border-radius: 8px;
+    background: var(--accent-color, #2563eb);
+    color: #fff;
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.edit-icon-button:hover:not(:disabled) {
+    background: var(--accent-hover, #1d4ed8);
+    transform: translateY(-1px);
+}
+
+.edit-icon-button:focus-visible {
+    outline: 2px solid var(--accent-color, #2563eb);
+    outline-offset: 3px;
+}
+
+.edit-icon-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}

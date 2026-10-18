@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
-import { getDocument } from "../api/documents";
+import { getDocument, updateDocument } from "../api/documents";
 import type { DocumentDetail } from "../types/document";
+
+import DocumentEditForm, { type DocumentCorrectionPayload, } from "../components/DocumentEditForm";
 
 import "./DocumentDetails.css";
 
@@ -46,6 +48,10 @@ export default function DocumentDetails() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
 
+    const [editing, setEditing] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [saveError, setSaveError] = useState("");
+
     useEffect(() => {
         let cancelled = false;
 
@@ -87,6 +93,32 @@ export default function DocumentDetails() {
         };
     }, [id]);
 
+    async function handleSaveCorrections(payload: DocumentCorrectionPayload) {
+        if (!id) {
+            throw new Error("Document ID is missing.");
+        }
+
+        setSaving(true);
+        setSaveError("");
+
+        try {
+            const updatedDocument = await updateDocument(id, payload);
+
+            setDocument(updatedDocument);
+            setEditing(false);
+        } catch (err) {
+            const message =
+                err instanceof Error
+                    ? err.message
+                    : "Could not save document corrections.";
+
+            setSaveError(message);
+            throw err;
+        } finally {
+            setSaving(false);
+        }
+    }
+
     return (
         <main className="app">
             <header className="topbar">
@@ -123,6 +155,15 @@ export default function DocumentDetails() {
 
                 {!loading && document && (
                     <>
+
+                        {editing && (
+                            <DocumentEditForm
+                                document={document}
+                                saving={saving}
+                                onSave={handleSaveCorrections}
+                                onCancel={() => setEditing(false)}
+                            />
+                        )}
                         <section className="panel details-panel">
                             <div className="details-heading">
                                 <div>
@@ -132,12 +173,49 @@ export default function DocumentDetails() {
                                     <h2>{document.filename}</h2>
                                 </div>
 
-                                <span
-                                    className={`status status-${document.status}`}
-                                >
-                                    <span className="status-dot" />
-                                    {statusLabels[document.status]}
-                                </span>
+                                <div className="details-heading-actions">
+                                    <span className={`status status-${document.status}`}>
+                                        <span className="status-dot" />
+                                        {statusLabels[document.status]}
+                                    </span>
+
+                                    {saveError && !editing && (
+                                        <p className="feedback error" role="alert">
+                                            {saveError}
+                                        </p>
+                                    )}
+
+                                    <button
+                                        type="button"
+                                        className="edit-icon-button"
+                                        aria-label="Edit document details"
+                                        title="Edit document details"
+                                        disabled={
+                                            editing ||
+                                            document.status === "pending" ||
+                                            document.status === "processing"
+                                        }
+                                        onClick={() => {
+                                            setSaveError("");
+                                            setEditing(true);
+                                        }}
+                                    >
+                                        <svg
+                                            width="18"
+                                            height="18"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="2"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            aria-hidden="true"
+                                        >
+                                            <path d="M12 20h9" />
+                                            <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z" />
+                                        </svg>
+                                    </button>
+                                </div>
                             </div>
 
                             <dl className="details-grid">
