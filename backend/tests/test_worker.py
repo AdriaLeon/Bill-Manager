@@ -284,3 +284,75 @@ async def test_document_lifecycle_pending_to_error(
         assert document.processed_at is not None
         assert document.lease_token is None
         assert document.lease_expires_at is None
+
+
+@pytest.mark.asyncio
+async def test_worker_recovers_and_reclaims_job_after_crash(
+    db, fast_retries
+):
+    worker = worker_module.DocumentWorker(
+        extractor=InvoiceExtractor(
+            failure_rate=0,
+            min_latency=0,
+            max_latency=0,
+        )
+    )
+
+    document_id = create_pending_document(
+        db, "invoice_valid.txt"
+    )
+
+    first_claim = worker.claim_next_document()
+    assert first_claim is not None
+
+    claimed_id, first_token = first_claim
+    assert claimed_id == document_id
+
+    with db.begin() as session:
+        document = session.get(Document, document_id)
+        assert document.status == DocumentStatus.PROCESSING
+        assert document.attempt_count == 1
+
+        # Simulate a worker crash: the job remains PROCESSING, but its lease expires.
+        document.lease_expires_at = (
+            worker_module.utc_now() - timedelta(seconds=1)
+        )
+
+    worker.recover_stale_documents()
+
+    with db() as session:
+        document = session.get(Document, document_id)
+
+        assert document.status == DocumentStatus.PENDING
+        assert document.attempt_count == 1
+        assert document.lease_token is None
+        assert document.lease_expires_at is None
+        assert "lease expired" in document.last_error.lower()
+
+    second_claim = worker.claim_next_document()
+    assert second_claim is not None
+
+    reclaimed_id, second_token = second_claim
+
+    assert reclaimed_id == document_id
+    assert second_token != first_token
+
+    with db() as session:
+        document = session.get(Document, document_id)
+
+        assert document.status == DocumentStatus.PROCESSING
+        assert document.attempt_count == 2
+        assert document.lease_token == second_token
+        assert document.lease_expires_at is not None
+
+    await worker.process_document(document_id, second_token)
+
+    with db() as session:
+        document = session.get(Document, document_id)
+
+        assert document.status == DocumentStatus.COMPLETED
+        assert document.attempt_count == 2
+        assert document.processed_at is not None
+        assert document.lease_token is None
+        assert document.lease_expires_at is None
+        assert document.supplier == "ACME S.L."
