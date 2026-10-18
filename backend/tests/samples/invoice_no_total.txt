@@ -1,0 +1,3 @@
+Proveedor: ACME S.L.
+Fecha: 01/12/2004
+Importe: 1234,00 EUR

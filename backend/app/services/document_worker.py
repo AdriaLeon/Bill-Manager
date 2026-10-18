@@ -172,13 +172,26 @@ class DocumentWorker:
                 with SessionLocal() as session:
                     document = session.get(Document, document_id)
 
+                    if document is None:
+                        return
+
                     if (
-                        document is None
-                        or document.status != DocumentStatus.PROCESSING
+                        document.status != DocumentStatus.PROCESSING
                         or document.lease_token != token
-                        or document.lease_expires_at is None
-                        or document.lease_expires_at <= utc_now()
                     ):
+                        return
+
+                    lease_expires_at = document.lease_expires_at
+
+                    if lease_expires_at is None:
+                        return
+
+                    if lease_expires_at.tzinfo is None:
+                        lease_expires_at = lease_expires_at.replace(
+                            tzinfo=timezone.utc
+                        )
+
+                    if lease_expires_at <= utc_now():
                         return
 
                     content = document.content
