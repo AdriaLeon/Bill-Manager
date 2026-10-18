@@ -1,0 +1,3 @@
+Proveedor: ACME
+Fecha: 2004-12-01
+Total: 1234 EUR

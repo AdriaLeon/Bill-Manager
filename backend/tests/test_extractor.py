@@ -60,3 +60,45 @@ async def test_rejects_malformed_amount_formats(
         await extractor.extract(content)
 
     assert expected_message.casefold() in str(exc_info.value).casefold()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("filename", "expected_date"),
+    [
+        ("valid-date-dmy-hyphen.txt", date(2004, 12, 1)),
+        ("valid-date-dmy-slash-single-digit.txt", date(2004, 12, 1)),
+        ("valid-date-dmy-slash.txt", date(2004, 12, 1)),
+        ("valid-date-iso.txt", date(2004, 12, 1)),
+    ],
+)
+async def test_extracts_supported_date_formats(
+    extractor,
+    filename,
+    expected_date,
+):
+    content = (FIXTURES / filename).read_text(encoding="utf-8")
+
+    result = await extractor.extract(content)
+
+    assert result.invoice_date == expected_date
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("filename", "expected_message"),
+    [
+        ("invalid-date-us-format.txt", "fecha"),
+    ],
+)
+async def test_rejects_invalid_date_formats(
+    extractor,
+    filename,
+    expected_message,
+):
+    content = (FIXTURES / filename).read_text(encoding="utf-8")
+
+    with pytest.raises(PermanentExtractionError) as exc_info:
+        await extractor.extract(content)
+
+    assert expected_message.casefold() in str(exc_info.value).casefold()

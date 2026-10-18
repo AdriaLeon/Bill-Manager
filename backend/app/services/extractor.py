@@ -143,7 +143,10 @@ class InvoiceExtractor:
 
         date_match = re.search(
             r"^\s*Fecha\s*:\s*"
-            r"(?P<date>\d{2}/\d{2}/\d{4}|\d{4}-\d{2}-\d{2})\s*$",
+            r"(?P<date>"
+            r"\d{4}-\d{2}-\d{2}"
+            r"|\d{1,2}[/-]\d{1,2}[/-]\d{4}"
+            r")\s*$",
             content,
             re.IGNORECASE | re.MULTILINE,
         )
@@ -156,16 +159,19 @@ class InvoiceExtractor:
         date_text = date_match.group("date")
 
         try:
-            if "/" in date_text:
-                invoice_date = datetime.strptime(
-                    date_text, "%d/%m/%Y"
-                ).date()
-            else:
+            if re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_text):
                 invoice_date = date.fromisoformat(date_text)
+            else:
+                # Acepta D/M/YYYY, DD/MM/YYYY, D-M-YYYY y DD-MM-YYYY.
+                date_format = "%d/%m/%Y" if "/" in date_text else "%d-%m-%Y"
+                invoice_date = datetime.strptime(
+                    date_text, date_format
+                ).date()
         except ValueError as exc:
             raise PermanentExtractionError(
                 f"Fecha de factura no válida: {date_text}"
             ) from exc
+
 
         return ExtractedInvoice(
             supplier=supplier,
