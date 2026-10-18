@@ -7,6 +7,8 @@ import pytest
 from app.services.exceptions import PermanentExtractionError
 from app.services.extractor import InvoiceExtractor
 
+from app.services.exceptions import (PermanentExtractionError,TransientExtractionError)
+
 
 FIXTURES = Path(__file__).parent / "samples"
 
@@ -82,7 +84,7 @@ async def test_extracts_supported_date_formats(
     result = await extractor.extract(content)
 
     assert result.invoice_date == expected_date
-
+    
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
@@ -91,14 +93,20 @@ async def test_extracts_supported_date_formats(
         ("invalid-date-us-format.txt", "fecha"),
     ],
 )
-async def test_rejects_invalid_date_formats(
+async def test_retries_invalid_date_formats(
     extractor,
     filename,
     expected_message,
 ):
     content = (FIXTURES / filename).read_text(encoding="utf-8")
 
-    with pytest.raises(PermanentExtractionError) as exc_info:
+    with pytest.raises(TransientExtractionError) as exc_info:
         await extractor.extract(content)
 
     assert expected_message.casefold() in str(exc_info.value).casefold()
+
+    # The valid fields should be preserved as partial data.
+    partial = exc_info.value.partial_data
+    assert partial is not None
+    assert partial.invoice_date is None
+    assert partial.total_amount is not None

@@ -6,3 +6,5 @@ alembic
 python-multipart
 pytest
 pytest-asyncio
+google-genai
+python-dotenv

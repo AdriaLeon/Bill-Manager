@@ -6,19 +6,21 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
-from app.services.exceptions import (PermanentExtractionError,TransientExtractionError)
+from app.services.exceptions import (
+    PermanentExtractionError,
+    TransientExtractionError,
+)
 
 
 @dataclass(frozen=True, slots=True)
 class ExtractedInvoice:
-    supplier: str
-    invoice_date: date
-    total_amount: Decimal
-    currency: str
+    supplier: str | None = None
+    invoice_date: date | None = None
+    total_amount: Decimal | None = None
+    currency: str | None = None
 
 
 class InvoiceExtractor:
-
     def __init__(
         self,
         failure_rate: float = 0.20,
@@ -42,8 +44,8 @@ class InvoiceExtractor:
         self.max_attempts = max_attempts
         self.backoff_base = backoff_base
 
-
     async def extract(self, content: str) -> ExtractedInvoice:
+        # Total is mandatory. Missing total is never retryable.
         total_line = next(
             (
                 line.strip()
@@ -63,7 +65,6 @@ class InvoiceExtractor:
             random.uniform(self.min_latency, self.max_latency)
         )
 
-        # Simulate a transient service failure.
         if random.random() < self.failure_rate:
             raise TransientExtractionError(
                 "Error temporal simulado del servicio externo"
@@ -71,9 +72,10 @@ class InvoiceExtractor:
 
         return self._parse_invoice(content, total_line)
 
-
     @staticmethod
-    def _parse_invoice(content: str,total_line: str,) -> ExtractedInvoice:
+    def _parse_invoice(
+        content: str, total_line: str
+    ) -> ExtractedInvoice:
         amount_pattern = r"\d+(?:\.\d{3})*(?:,\d{1,2})?"
 
         match = re.fullmatch(
@@ -85,6 +87,7 @@ class InvoiceExtractor:
             re.IGNORECASE,
         )
 
+        # An unparseable total is a permanent failure.
         if not match:
             raise PermanentExtractionError(
                 f"No se pudo interpretar el importe total: {total_line}"
@@ -99,7 +102,6 @@ class InvoiceExtractor:
             raise PermanentExtractionError(
                 "El importe total no especifica la moneda"
             )
-
 
         raw_amount = match.group("amount")
 
@@ -127,19 +129,22 @@ class InvoiceExtractor:
                 "El importe total debe ser un número finito no negativo"
             )
 
+        # Extract other fields independently.
+        missing_fields: list[str] = []
 
         supplier_match = re.search(
             r"^\s*Proveedor\s*:\s*(.+?)\s*$",
             content,
             re.IGNORECASE | re.MULTILINE,
         )
+        supplier = (
+            supplier_match.group(1).strip()
+            if supplier_match and supplier_match.group(1).strip()
+            else None
+        )
 
-        if not supplier_match:
-            raise PermanentExtractionError(
-                "La factura no contiene el campo Proveedor"
-            )
-
-        supplier = supplier_match.group(1).strip()
+        if supplier is None:
+            missing_fields.append("Proveedor")
 
         date_match = re.search(
             r"^\s*Fecha\s*:\s*"
@@ -151,31 +156,40 @@ class InvoiceExtractor:
             re.IGNORECASE | re.MULTILINE,
         )
 
-        if not date_match:
-            raise PermanentExtractionError(
-                "La factura no contiene una fecha válida"
-            )
+        invoice_date = None
 
-        date_text = date_match.group("date")
+        if date_match:
+            date_text = date_match.group("date")
+            try:
+                if re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_text):
+                    invoice_date = date.fromisoformat(date_text)
+                else:
+                    date_format = (
+                        "%d/%m/%Y"
+                        if "/" in date_text
+                        else "%d-%m-%Y"
+                    )
+                    invoice_date = datetime.strptime(
+                        date_text, date_format
+                    ).date()
+            except ValueError:
+                pass
 
-        try:
-            if re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_text):
-                invoice_date = date.fromisoformat(date_text)
-            else:
-                # Acepta D/M/YYYY, DD/MM/YYYY, D-M-YYYY y DD-MM-YYYY.
-                date_format = "%d/%m/%Y" if "/" in date_text else "%d-%m-%Y"
-                invoice_date = datetime.strptime(
-                    date_text, date_format
-                ).date()
-        except ValueError as exc:
-            raise PermanentExtractionError(
-                f"Fecha de factura no válida: {date_text}"
-            ) from exc
+        if invoice_date is None:
+            missing_fields.append("Fecha")
 
-
-        return ExtractedInvoice(
+        extracted = ExtractedInvoice(
             supplier=supplier,
             invoice_date=invoice_date,
             total_amount=amount,
             currency=currency.upper(),
         )
+
+        if missing_fields:
+            raise TransientExtractionError(
+                "Faltan campos obligatorios: "
+                + ", ".join(missing_fields),
+                partial_data=extracted,
+            )
+
+        return extracted

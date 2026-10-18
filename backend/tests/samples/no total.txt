@@ -1,0 +1,4 @@
+Proveedor: ACME S.L.
+Fecha: 01/12/2004
+IVA: 134,00 EUR
+Moneda: USE

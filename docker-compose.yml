@@ -37,6 +37,8 @@ services:
     command: python -m app.worker
     environment:
       DATABASE_URL: postgresql+psycopg://app:${POSTGRES_PASSWORD}@db:5432/invoices
+      USE_AI_EXTRACTOR: ${USE_AI_EXTRACTOR:-false}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
     volumes:
       - ./backend:/app
     depends_on:

@@ -9,10 +9,7 @@ from sqlalchemy import select, update
 
 from app.db.session import SessionLocal
 from app.models.document import Document, DocumentStatus
-from app.services.exceptions import (
-    PermanentExtractionError,
-    TransientExtractionError,
-)
+from app.services.exceptions import (PermanentExtractionError,TransientExtractionError)
 from app.services.extractor import InvoiceExtractor
 
 logger = logging.getLogger(__name__)
@@ -24,17 +21,29 @@ POLL_INTERVAL = 0.5
 LEASE_DURATION = timedelta(seconds=60)
 LEASE_RENEW_INTERVAL = 20
 
+EXTRACTED_FIELDS = (
+    "supplier",
+    "invoice_date",
+    "total_amount",
+    "currency",
+)
+
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
 class DocumentWorker:
-    def __init__(self, extractor: InvoiceExtractor) -> None:
-        self.extractor = extractor
+    def __init__(self,extractor: InvoiceExtractor | None = None) -> None:
+        self.extractor = extractor or InvoiceExtractor()
+
+        logger.info(
+            "Document worker initialized with %s extractor",
+            type(self.extractor).__name__,
+        )
 
     def recover_stale_documents(self) -> None:
-        """Recover jobs whose leases have expired."""
+        """Recover jobs whose processing leases have expired."""
         now = utc_now()
 
         with SessionLocal.begin() as session:
@@ -50,7 +59,6 @@ class DocumentWorker:
             for document in stale_documents:
                 message = "Processing lease expired; job recovered."
 
-                # Avoid endlessly retrying jobs that repeatedly crash.
                 if document.attempt_count >= MAX_ATTEMPTS:
                     document.status = DocumentStatus.ERROR
                     document.processed_at = now
@@ -70,8 +78,9 @@ class DocumentWorker:
                     document.attempt_count,
                 )
 
+
     def claim_next_document(self) -> tuple[UUID, UUID] | None:
-        """Atomically claim a pending job and create its lease."""
+        """Atomically claim a pending document and create its lease."""
         now = utc_now()
         token = uuid.uuid4()
 
@@ -98,6 +107,7 @@ class DocumentWorker:
         logger.info("Claimed document %s", document_id)
         return document_id, token
 
+
     def renew_lease(self, document_id: UUID, token: UUID) -> bool:
         """Renew only if this worker still owns a valid lease."""
         now = utc_now()
@@ -116,6 +126,7 @@ class DocumentWorker:
 
             return result.rowcount == 1
 
+
     async def _heartbeat(
         self,
         document_id: UUID,
@@ -123,7 +134,7 @@ class DocumentWorker:
         stop_event: asyncio.Event,
         lease_lost: asyncio.Event,
     ) -> None:
-        """Keep the lease alive while extraction or retry backoff runs."""
+        """Keep the lease alive during extraction and retry backoff."""
         while True:
             try:
                 await asyncio.wait_for(
@@ -136,33 +147,45 @@ class DocumentWorker:
 
             try:
                 renewed = await asyncio.to_thread(
-                    self.renew_lease, document_id, token
+                    self.renew_lease,
+                    document_id,
+                    token,
                 )
             except Exception:
                 logger.exception(
-                    "Could not renew lease for document %s", document_id
+                    "Could not renew lease for document %s",
+                    document_id,
                 )
                 lease_lost.set()
                 return
 
             if not renewed:
                 logger.warning(
-                    "Lease lost for document %s", document_id
+                    "Lease lost for document %s",
+                    document_id,
                 )
                 lease_lost.set()
                 return
 
+
     async def process_document(
-        self, document_id: UUID, token: UUID
+        self,
+        document_id: UUID,
+        token: UUID,
     ) -> None:
         stop_event = asyncio.Event()
         lease_lost = asyncio.Event()
 
         heartbeat_task = asyncio.create_task(
             self._heartbeat(
-                document_id, token, stop_event, lease_lost
+                document_id,
+                token,
+                stop_event,
+                lease_lost,
             )
         )
+
+        partial_data = {}
 
         try:
             while True:
@@ -197,25 +220,54 @@ class DocumentWorker:
                     content = document.content
                     attempt = document.attempt_count
 
+                    # Existing values can come from previous attempts.
+                    for field in EXTRACTED_FIELDS:
+                        value = getattr(document, field)
+                        if value is not None:
+                            partial_data[field] = value
+
                 try:
                     extracted = await self.extractor.extract(content)
 
                 except PermanentExtractionError as exc:
-                    self._mark_error(document_id, token, str(exc))
+                    # Missing or invalid total must never be retried.
+                    self._mark_error(
+                        document_id,
+                        token,
+                        str(exc),
+                    )
                     return
 
                 except TransientExtractionError as exc:
                     if lease_lost.is_set():
                         return
 
+                    # Merge any newly extracted partial fields.
+                    exc_partial = getattr(exc, "partial_data", None)
+                    if exc_partial is not None:
+                        for field in EXTRACTED_FIELDS:
+                            value = getattr(exc_partial, field, None)
+                            if value is not None:
+                                partial_data[field] = value
+
                     if attempt >= MAX_ATTEMPTS:
-                        self._mark_error(document_id, token, str(exc))
+                        self._mark_error(
+                            document_id,
+                            token,
+                            str(exc),
+                            partial_data,
+                        )
                         return
 
-                    if not self._save_error(document_id, token, str(exc)):
+                    if not self._save_error(
+                        document_id,
+                        token,
+                        str(exc),
+                        partial_data,
+                    ):
                         return
 
-                    # The heartbeat remains active during backoff.
+                    # Exponential backoff: 1 second, then 2 seconds.
                     await asyncio.sleep(
                         BACKOFF_BASE * (2 ** (attempt - 1))
                     )
@@ -223,8 +275,9 @@ class DocumentWorker:
                     if lease_lost.is_set():
                         return
 
-                    # Count the next attempt only if we still own the lease.
+                    # Count the next attempt only if the lease is valid.
                     now = utc_now()
+
                     with SessionLocal.begin() as session:
                         result = session.execute(
                             update(Document)
@@ -249,21 +302,29 @@ class DocumentWorker:
 
                 except Exception as exc:
                     logger.exception(
-                        "Unexpected extraction error for %s",
+                        "Unexpected extraction error for document %s",
                         document_id,
                     )
                     self._mark_error(
                         document_id,
                         token,
-                        f"Error inesperado: {exc}",
+                        f"Unexpected extraction error: {exc}",
+                        partial_data,
                     )
                     return
 
                 if lease_lost.is_set():
                     return
 
+                # Merge successfully extracted fields with previous partials.
+                for field in EXTRACTED_FIELDS:
+                    value = getattr(extracted, field, None)
+                    if value is not None:
+                        partial_data[field] = value
+
                 # Only the current lease owner can complete the document.
                 now = utc_now()
+
                 with SessionLocal.begin() as session:
                     result = session.execute(
                         update(Document)
@@ -274,10 +335,7 @@ class DocumentWorker:
                             Document.lease_expires_at > now,
                         )
                         .values(
-                            supplier=extracted.supplier,
-                            invoice_date=extracted.invoice_date,
-                            total_amount=extracted.total_amount,
-                            currency=extracted.currency,
+                            **partial_data,
                             status=DocumentStatus.COMPLETED,
                             last_error=None,
                             processed_at=now,
@@ -287,12 +345,16 @@ class DocumentWorker:
                     )
 
                 if result.rowcount == 1:
-                    logger.info("Document %s completed", document_id)
+                    logger.info(
+                        "Document %s completed",
+                        document_id,
+                    )
                 else:
                     logger.warning(
                         "Document %s was not completed: lease lost",
                         document_id,
                     )
+
                 return
 
         finally:
@@ -300,10 +362,23 @@ class DocumentWorker:
             await heartbeat_task
 
     def _save_error(
-        self, document_id: UUID, token: UUID, message: str
+        self,
+        document_id: UUID,
+        token: UUID,
+        message: str,
+        partial_data: dict | None = None,
     ) -> bool:
-        """Save a retryable error only while this lease is valid."""
+        """Save retry state and available fields while the lease is valid."""
         now = utc_now()
+
+        values = {"last_error": message}
+
+        if partial_data:
+            values.update({
+                field: value
+                for field, value in partial_data.items()
+                if field in EXTRACTED_FIELDS and value is not None
+            })
 
         with SessionLocal.begin() as session:
             result = session.execute(
@@ -314,16 +389,35 @@ class DocumentWorker:
                     Document.lease_token == token,
                     Document.lease_expires_at > now,
                 )
-                .values(last_error=message)
+                .values(**values)
             )
 
             return result.rowcount == 1
 
     def _mark_error(
-        self, document_id: UUID, token: UUID, message: str
+        self,
+        document_id: UUID,
+        token: UUID,
+        message: str,
+        partial_data: dict | None = None,
     ) -> None:
-        """Mark a job failed only if this worker still owns its lease."""
+        """Mark a document as failed and persist any available fields."""
         now = utc_now()
+
+        values = {
+            "status": DocumentStatus.ERROR,
+            "last_error": message,
+            "processed_at": now,
+            "lease_token": None,
+            "lease_expires_at": None,
+        }
+
+        if partial_data:
+            values.update({
+                field: value
+                for field, value in partial_data.items()
+                if field in EXTRACTED_FIELDS and value is not None
+            })
 
         with SessionLocal.begin() as session:
             result = session.execute(
@@ -334,18 +428,14 @@ class DocumentWorker:
                     Document.lease_token == token,
                     Document.lease_expires_at > now,
                 )
-                .values(
-                    status=DocumentStatus.ERROR,
-                    last_error=message,
-                    processed_at=now,
-                    lease_token=None,
-                    lease_expires_at=None,
-                )
+                .values(**values)
             )
 
             if result.rowcount == 1:
                 logger.error(
-                    "Document %s failed: %s", document_id, message
+                    "Document %s failed: %s",
+                    document_id,
+                    message,
                 )
 
     async def run(self) -> None:
