@@ -1,0 +1,5 @@
+FACTURA Nº 2026-1001
+Proveedor: Suministros Norte SL
+Fecha: 15/10/2026
+Concepto: Material de oficina
+Total: 1234 EUR

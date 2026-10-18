@@ -1,0 +1,5 @@
+FACTURA Nº 2026-1003
+Proveedor: Servicios Digitales SL
+Fecha: 10/10/2026
+Concepto: Mantenimiento de software
+Total: 250,50 EUR

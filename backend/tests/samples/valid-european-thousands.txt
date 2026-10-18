@@ -1,7 +1,7 @@
-FACTURA Nº 2026-0412
+FACTURA Nº 2026-1002
 Proveedor: Laboratorios Ribera S.L.
 Fecha: 03/10/2026
-Concepto: Reactivos de laboratorio
+Concepto: Equipamiento de laboratorio
 Base imponible: 1.250,00 EUR
 IVA 21%: 262,50 EUR
 Total: 1.512,50 EUR

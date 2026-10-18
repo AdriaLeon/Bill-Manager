@@ -73,12 +73,8 @@ class InvoiceExtractor:
 
 
     @staticmethod
-    def _parse_invoice(
-        content: str,
-        total_line: str,
-    ) -> ExtractedInvoice:
-        # Spanish amount format: 1.512,50 EUR or EUR 1.512,50.
-        amount_pattern = r"-?\d+(?:\.\d{3})*(?:,\d{1,2})?"
+    def _parse_invoice(content: str,total_line: str,) -> ExtractedInvoice:
+        amount_pattern = r"\d+(?:\.\d{3})*(?:,\d{1,2})?"
 
         match = re.fullmatch(
             r"\s*Total\b\s*:?\s*"
@@ -104,11 +100,20 @@ class InvoiceExtractor:
                 "El importe total no especifica la moneda"
             )
 
-        normalized_amount = (
-            match.group("amount")
-            .replace(".", "")
-            .replace(",", ".")
-        )
+
+        raw_amount = match.group("amount")
+
+        if "," in raw_amount:
+            normalized_amount = (
+                raw_amount.replace(".", "").replace(",", ".")
+            )
+        elif "." in raw_amount:
+            if re.fullmatch(r"\d{1,3}(?:\.\d{3})+", raw_amount):
+                normalized_amount = raw_amount.replace(".", "")
+            else:
+                normalized_amount = raw_amount
+        else:
+            normalized_amount = raw_amount
 
         try:
             amount = Decimal(normalized_amount)
@@ -121,6 +126,7 @@ class InvoiceExtractor:
             raise PermanentExtractionError(
                 "El importe total debe ser un número finito no negativo"
             )
+
 
         supplier_match = re.search(
             r"^\s*Proveedor\s*:\s*(.+?)\s*$",
