@@ -1,7 +1,7 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import create_engine
@@ -180,3 +180,107 @@ async def test_worker_processes_valid_invoice(
 
         assert document.supplier == "ACME S.L."
         assert str(document.invoice_date) == "2004-12-01"
+
+
+def create_pending_document(db, filename: str) -> UUID:
+    content = load_sample(filename)
+
+    with db.begin() as session:
+        document = Document(
+            filename=filename,
+            content=content,
+            status=DocumentStatus.PENDING,
+            attempt_count=0,
+        )
+        session.add(document)
+        session.flush()
+        document_id = document.id
+
+    return document_id
+
+
+@pytest.mark.asyncio
+async def test_document_lifecycle_pending_to_completed(db, fast_retries):
+    worker = worker_module.DocumentWorker(
+        extractor=InvoiceExtractor(
+            failure_rate=0,
+            min_latency=0,
+            max_latency=0,
+        )
+    )
+
+    document_id = create_pending_document(
+        db, "invoice_valid.txt"
+    )
+
+    # State 1: PENDING
+    with db() as session:
+        document = session.get(Document, document_id)
+        assert document.status == DocumentStatus.PENDING
+        assert document.attempt_count == 0
+
+    # Transition: PENDING -> PROCESSING
+    claimed = worker.claim_next_document()
+    assert claimed is not None
+
+    claimed_id, token = claimed
+    assert claimed_id == document_id
+
+    with db() as session:
+        document = session.get(Document, document_id)
+        assert document.status == DocumentStatus.PROCESSING
+        assert document.attempt_count == 1
+        assert document.lease_token == token
+        assert document.lease_expires_at is not None
+
+    # Transition: PROCESSING -> COMPLETED
+    await worker.process_document(document_id, token)
+
+    with db() as session:
+        document = session.get(Document, document_id)
+        assert document.status == DocumentStatus.COMPLETED
+        assert document.processed_at is not None
+        assert document.lease_token is None
+        assert document.lease_expires_at is None
+        assert document.supplier == "ACME S.L."
+
+
+@pytest.mark.asyncio
+async def test_document_lifecycle_pending_to_error(
+    db, fast_retries
+):
+    worker = worker_module.DocumentWorker(
+        extractor=InvoiceExtractor(
+            failure_rate=0,
+            min_latency=0,
+            max_latency=0,
+        )
+    )
+
+    document_id = create_pending_document(
+        db, "invoice_no_total.txt"
+    )
+
+    # Transition: PENDING -> PROCESSING
+    claimed = worker.claim_next_document()
+    assert claimed is not None
+
+    claimed_id, token = claimed
+    assert claimed_id == document_id
+
+    with db() as session:
+        document = session.get(Document, document_id)
+        assert document.status == DocumentStatus.PROCESSING
+        assert document.attempt_count == 1
+
+    # Transition: PROCESSING -> ERROR
+    await worker.process_document(document_id, token)
+
+    with db() as session:
+        document = session.get(Document, document_id)
+        assert document.status == DocumentStatus.ERROR
+        assert document.attempt_count == 1
+        assert "Total" in document.last_error
+        assert document.processed_at is not None
+        assert document.lease_token is None
+        assert document.lease_expires_at is None
