@@ -1,0 +1,260 @@
+/* Document list panel */
+.document-list {
+    min-width: 0;
+}
+
+.list-heading {
+    align-items: center;
+}
+
+/* Filter indicator */
+.filter-dot,
+.status-dot {
+    display: inline-block;
+    flex-shrink: 0;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+}
+
+.filter-dot {
+    background: #426bb5;
+}
+
+/* Filter form */
+.filter-form {
+    margin-bottom: 20px;
+    padding: 18px;
+    border: 1px solid #e5eaf2;
+    border-radius: 10px;
+    background: #fafbfe;
+}
+
+.filter-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+}
+
+.filter-grid label {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    color: #34435b;
+    font-size: 12px;
+    font-weight: 650;
+}
+
+.filter-grid input,
+.filter-grid select {
+    width: 100%;
+    min-height: 40px;
+    padding: 9px 11px;
+    border: 1px solid #dce3ed;
+    border-radius: 8px;
+    background: #fff;
+    color: #27354b;
+}
+
+.filter-grid input:focus,
+.filter-grid select:focus {
+    outline: 2px solid #b7c8ed;
+    outline-offset: 1px;
+}
+
+.filter-actions {
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 18px;
+}
+
+/* Document count and summary */
+.list-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+    color: #748095;
+    font-size: 12px;
+}
+
+/* Documents table */
+.table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.table-wrapper table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+    font-size: 12px;
+}
+
+.table-wrapper thead {
+    background: #f7f8fb;
+}
+
+.table-wrapper th {
+    color: #69768b;
+    font-weight: 650;
+    white-space: nowrap;
+}
+
+.table-wrapper th,
+.table-wrapper td {
+    padding: 15px 13px;
+    border-bottom: 1px solid #edf0f5;
+}
+
+.table-wrapper td {
+    color: #46546a;
+}
+
+.table-wrapper tbody tr:hover {
+    background: #fbfcff;
+}
+
+/* Filename column */
+.filename-cell {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 175px;
+    color: #25344b;
+    font-weight: 600;
+}
+
+.filename-text {
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Document statuses */
+.status {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 9px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 650;
+    white-space: nowrap;
+}
+
+.status-pending {
+    background: #fff5df;
+    color: #986513;
+}
+
+.status-pending .status-dot {
+    background: #d99a20;
+}
+
+.status-processing {
+    background: #eaf1ff;
+    color: #3159a4;
+}
+
+.status-processing .status-dot {
+    background: #4876d1;
+}
+
+.status-completed {
+    background: #e8f7ee;
+    color: #187442;
+}
+
+.status-completed .status-dot {
+    background: #2e9b61;
+}
+
+.status-error {
+    background: #ffeded;
+    color: #b42318;
+}
+
+.status-error .status-dot {
+    background: #d34444;
+}
+
+.status-reviewed {
+    background: #edf1fb;
+    color: #35528b;
+}
+
+.status-reviewed .status-dot {
+    background: #5877b2;
+}
+
+/* Empty state */
+.empty-state {
+    padding: 40px 16px;
+    color: #748095;
+    line-height: 1.8;
+    text-align: center;
+}
+
+/* Pagination */
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 20px;
+    color: #748095;
+    font-size: 12px;
+}
+
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.page-button {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border: 1px solid #dfe5ee;
+    border-radius: 8px;
+    background: #fff;
+    color: #34435b;
+    font-size: 22px;
+}
+
+.page-button:hover:not(:disabled) {
+    background: #f5f7fb;
+}
+
+.page-number {
+    color: #46546a;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+/* Responsive layout */
+@media (max-width: 640px) {
+    .filter-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .filter-actions {
+        align-items: stretch;
+    }
+
+    .filter-actions .button {
+        flex: 1;
+    }
+
+    .pagination {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}

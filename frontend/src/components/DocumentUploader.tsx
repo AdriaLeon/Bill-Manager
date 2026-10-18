@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { uploadDocuments } from "../api/documents";
+import "../styles/DocumentUploader.css";
 
 interface DocumentUploaderProps {
     onUploaded: () => void;
@@ -100,8 +101,8 @@ export default function DocumentUploader({ onUploaded, }: DocumentUploaderProps)
     }
 
     return (
-        <section className="panel">
-            <div className="section-heading">
+        <section className="uploader-panel panel">
+            <div className="uploader-heading section-heading">
                 <div>
                     <h2>Upload documents</h2>
                     <p>
@@ -136,9 +137,7 @@ export default function DocumentUploader({ onUploaded, }: DocumentUploaderProps)
                 </div>
 
                 <h3>Drop your files here</h3>
-                <p>
-                    Or browse your computer to select files.
-                </p>
+                <p>Or browse your computer to select files.</p>
                 <p className="file-hint">
                     .txt files only · Maximum 1 MB per file
                 </p>
@@ -168,9 +167,7 @@ export default function DocumentUploader({ onUploaded, }: DocumentUploaderProps)
             {files.length > 0 && (
                 <div className="selected-files">
                     <div className="selected-files-heading">
-                        <strong>
-                            Selected files ({files.length})
-                        </strong>
+                        <strong>Selected files ({files.length})</strong>
 
                         <button
                             type="button"

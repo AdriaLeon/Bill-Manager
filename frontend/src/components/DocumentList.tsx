@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, } from "react";
-
 import { getDocuments, retryDocument, } from "../api/documents";
-
 import type { DocumentItem, DocumentStatus, } from "../types/document";
+import "../styles/DocumentList.css";
 
 const PAGE_SIZE = 10;
 
@@ -178,9 +177,7 @@ export default function DocumentList({
             <div className="section-heading list-heading">
                 <div>
                     <h2>Documents</h2>
-                    <p>
-                        Browse, filter, and monitor uploaded documents.
-                    </p>
+                    <p>Browse, filter, and monitor uploaded documents.</p>
                 </div>
 
                 <button
@@ -213,10 +210,7 @@ export default function DocumentList({
             </div>
 
             {filtersOpen && (
-                <form
-                    className="filter-form"
-                    onSubmit={applyFilters}
-                >
+                <form className="filter-form" onSubmit={applyFilters}>
                     <div className="filter-grid">
                         <label>
                             Status
@@ -314,7 +308,8 @@ export default function DocumentList({
                                 <td colSpan={6} className="empty-state">
                                     No documents found.
                                     <br />
-                                    Try changing your filters or uploading a document.
+                                    Try changing your filters or uploading a
+                                    document.
                                 </td>
                             </tr>
                         ) : (
@@ -322,7 +317,10 @@ export default function DocumentList({
                                 <tr key={doc.id}>
                                     <td>
                                         <div className="filename-cell">
-                                            <span className="file-icon">TXT</span>
+                                            <span className="file-icon">
+                                                TXT
+                                            </span>
+
                                             <span
                                                 className="filename-text"
                                                 title={doc.filename}
@@ -358,7 +356,9 @@ export default function DocumentList({
                                                 type="button"
                                                 className="text-button"
                                                 disabled={retryingId === doc.id}
-                                                onClick={() => void handleRetry(doc.id)}
+                                                onClick={() =>
+                                                    void handleRetry(doc.id)
+                                                }
                                             >
                                                 {retryingId === doc.id
                                                     ? "Retrying..."
