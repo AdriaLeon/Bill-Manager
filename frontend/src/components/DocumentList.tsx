@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent, } from "react
 import { getDocuments, retryDocument, } from "../api/documents";
 import type { DocumentItem, DocumentStatus, } from "../types/document";
 import "../styles/DocumentList.css";
+import { Link } from "react-router-dom";
 
 const PAGE_SIZE = 10;
 
@@ -321,12 +322,13 @@ export default function DocumentList({
                                                 TXT
                                             </span>
 
-                                            <span
-                                                className="filename-text"
-                                                title={doc.filename}
+                                            <Link
+                                                className="filename-text document-name-link"
+                                                title={`View details for ${doc.filename}`}
+                                                to={`/documents/${doc.id}`}
                                             >
                                                 {doc.filename}
-                                            </span>
+                                            </Link>
                                         </div>
                                     </td>
 
